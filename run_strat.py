@@ -10,16 +10,22 @@ rf = 0.0225 # fwd rate 3 months USD
 sigma = 0.1 # volatility
 
 call = Option_FX(S, K, T, rd, rf, sigma, OptionType.CALL)
-put = Option_FX(S, K, T, rd, rf, sigma, OptionType.PUT)
+put = Option_FX(S, 1.07, T, rd, rf, sigma, OptionType.PUT)
 
-pos = Strangle(call, put, 10e5, PositionType.LONG)
+pos = Strangle(call, put, 10e5, PositionType.SHORT)
 print(f"Delta strangle: {pos.delta()}")
 print(f"Gamma strangle: {pos.gamma()}")
 
 pos.update_spot(1.08)
 print(f"Delta strangle: {pos.delta()}")
 print(f"Gamma strangle: {pos.gamma()}")
-p1 = Position(PositionType.LONG,call,1)
-# p1.plot_payoff()
-print(call.get_bs_pricing())
+p1 = Position(PositionType.LONG,put,200)
+p1.plot_payoff()
+p1 = Position(PositionType.SHORT,put,200)
+p1.plot_payoff()
+p1 = Position(PositionType.LONG,call,200)
+p1.plot_payoff()
+p1 = Position(PositionType.SHORT,call,200)
+p1.plot_payoff()
+pos.plot_profit()
 

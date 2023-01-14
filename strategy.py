@@ -28,6 +28,12 @@ class Position:
             return self.__asset.get_payoff(St)
         else:
             return -self.__asset.get_payoff(St)
+        
+    def get_profit(self, St):
+        if self.__position_type == PositionType.LONG:
+            return self.get_payoff(St) - self.__asset.get_bs_pricing()
+        else:
+            return self.get_payoff(St) + self.__asset.get_bs_pricing()
     
     def __get_plot_title(self):
         if self.__position_type == PositionType.LONG:
@@ -41,12 +47,15 @@ class Position:
         return f"Payoff of a {pos_type} {op_type}"
 
     def plot_payoff(self):
-        x = np.linspace(0, 2*self.__asset.get_strike(), 200)
-        y = [self.get_payoff(i) for i in x]
-        plt.plot(x, y, label="Position payoff")
+        x = np.linspace(0, 2*self.__asset.get_strike(), 300)
+        y1 = [self.get_payoff(i) for i in x]
+        y2 = [self.get_profit(i) for i in x]
+        plt.plot(x, y1, label="Payoff")
+        plt.plot(x, y2, "r--", label="Profit")
         plt.xlabel("Underlying price")
         plt.ylabel("Payoff")
         plt.title(self.__get_plot_title())
+        plt.grid()
         plt.legend()
         plt.show()
 
@@ -77,6 +86,12 @@ class Strangle:
             self.__leg1 = Position(pos_type, option1, size)
             self.__leg2 = Position(pos_type, option2, size)
 
+    def get_leg1(self):
+        return self.__leg1
+    
+    def get_leg2(self):
+        return self.__leg2
+    
     def update_spot(self, S) -> None:
         self.__leg1.get_asset().update_spot(S)
         self.__leg2.get_asset().update_spot(S)
@@ -89,3 +104,26 @@ class Strangle:
         
     def gamma(self):
         return round(self.__leg1.gamma() + self.__leg2.gamma(),2)
+    
+    
+    def __get_plot_title(self):
+        if self.__leg1.get_position_type() == PositionType.LONG:
+            pos_type = "Long"
+        else:
+            pos_type = "Short"
+        return f"Profit of a {pos_type} Strangle"
+    
+    def plot_profit(self):
+        if self.__leg1.get_asset().get_strike() - self.__leg2.get_asset().get_strike() == 0:
+            end = 2*self.__leg1.get_asset().get_strike()
+        else:
+            xwindow = self.__leg2.get_asset().get_strike()
+            end = self.__leg1.get_asset().get_strike() + xwindow
+        x = np.linspace(0, end, 300)
+        y = [self.__leg1.get_profit(i) + self.__leg2.get_profit(i) for i in x]
+        plt.plot(x, y)
+        plt.xlabel("Underlying price")
+        plt.ylabel("Profit")
+        plt.title(self.__get_plot_title())
+        plt.grid()
+        plt.show()
