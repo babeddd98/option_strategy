@@ -1,7 +1,17 @@
-from option_classes import Option, OptionType
-from enum import Enum
 import matplotlib.pyplot as plt
 import numpy as np
+import yfinance as yf
+import pandas as pd
+from asset_classes import (
+    Asset, 
+    Currency,
+    Equity,
+    Option, 
+    Option_FX, 
+    OptionType
+    )
+from enum import Enum
+from datetime import datetime, date
 
 class PositionType(Enum):
     LONG = "long"
@@ -9,7 +19,9 @@ class PositionType(Enum):
 
 class Position:
 
-    def __init__(self, position_type: PositionType, asset: Option, quantity: int):
+    def __init__(self, position_type: PositionType, asset: Asset, quantity: int):
+        if quantity <= 0:
+            raise ValueError("Quantity must be positive")
         self.__position_type = position_type
         self.__asset = asset
         self.__quantity = quantity
@@ -85,7 +97,9 @@ class Strangle:
         else:
             self.__leg1 = Position(pos_type, option1, size)
             self.__leg2 = Position(pos_type, option2, size)
-
+            self.__hedging = []
+            self.__hedging_recap = []
+    
     def get_leg1(self):
         return self.__leg1
     
@@ -96,16 +110,21 @@ class Strangle:
         self.__leg1.get_asset().update_spot(S)
         self.__leg2.get_asset().update_spot(S)
         
+    def get_delta_hedge(self):
+        delta = 0
+        for positions in self.__hedging:
+            delta += positions.get_position_size()
+        return delta
+        
     def delta(self):
-        if self.__leg1.delta() + self.__leg2.delta() < 0.01:
+        if abs(self.__leg1.delta() + self.__leg2.delta() + self.get_delta_hedge()) < 0.01:
             return 0
         else:
-            return round(self.__leg1.delta() + self.__leg2.delta(), 2)
+            return round(self.__leg1.delta() + self.__leg2.delta() + self.get_delta_hedge(), 2)
         
     def gamma(self):
         return round(self.__leg1.gamma() + self.__leg2.gamma(),2)
-    
-    
+        
     def __get_plot_title(self):
         if self.__leg1.get_position_type() == PositionType.LONG:
             pos_type = "Long"
@@ -137,7 +156,60 @@ class Strangle:
         headline = f"\n ======================= {pos_type} STRANGLE OF {size} OPTIONS PER LEG ======================= \n|\n"
         first_leg = f"| First leg :  {pos_type} on {size} {self.__leg1.get_asset().info()}\n"
         second_leg = f"| Second leg : {pos_type} on {size} {self.__leg2.get_asset().info()}\n|\n"
+        greeks = f"| -------------------------------- GREEKS OF THE POSITION -------------------------------- \n| DELTA: {self.delta()}     |     GAMMA: {self.gamma()}\n|\n"
         bottom = " ========================================================================================="
-        return headline + first_leg + second_leg + bottom
+        return headline + first_leg + second_leg + greeks + bottom
+
+    def update_recap(self) -> None:
+        now = datetime.now()
+        spot_price = self.__leg1.get_asset().get_spot()
+        delta_leg1 = self.__leg1.delta()
+        delta_leg2 = self.__leg2.delta()
+        delta_strangle = self.delta()
+        delta_hedge = self.get_delta_hedge()
+        delta_global = delta_strangle + delta_hedge
+        recap = [now, round(spot_price, 4), delta_leg1, delta_leg2, delta_strangle, delta_hedge, delta_global]
+        self.__hedging_recap.append(recap)
+        
+    def print_recap(self) -> None:
+        recap_data = self.__hedging_recap
+        col = ["Time", "Spot price", "DELTA leg1", "DELTA leg2", "DELTA strangle", "DELTA hedge", "DELTA global"]
+        df = pd.DataFrame(recap_data, columns=col)
+        print("\n =========================== RECAP OF THE DELTA HEDGING STRATEGY ===========================")
+        print(df)
+        
+    def delta_hedging(self):
+        self.update_recap()
+        fx = isinstance(self.get_leg1().get_asset(), Option_FX)
+        if fx:
+            ticker = f"{self.get_leg1().get_asset().get_underlying_ticker()}=X"
+        else:
+            ticker = f"{self.get_leg1().get_asset().get_underlying_ticker()}"
+       
+        today = date.today()
+        forex_data = yf.download(ticker, start=today, end=today)
+        spot_price = float(forex_data["Close"])
+        self.update_spot(spot_price)
+        
+        # update greeks to keep neutral delta and positive gamma
+        delta_strangle = self.delta()
+        if fx:
+            asset = Currency(ticker, spot_price)
+        else:
+            asset = Equity(ticker, spot_price)
+            
+        if delta_strangle > 0:
+            hedging_position = Position(PositionType.SHORT, asset, abs(delta_strangle))
+        elif delta_strangle < 0:
+            hedging_position = Position(PositionType.LONG, asset, abs(delta_strangle))
+        else:
+            return
+    
+        self.__hedging.append(hedging_position)
+        self.update_recap()
+        
+        
+            
+    
         
         

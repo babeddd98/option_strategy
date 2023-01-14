@@ -1,5 +1,6 @@
-from scipy.stats import norm
 from enum import Enum
+from abc import ABC, abstractmethod
+from scipy.stats import norm
 import numpy as np
 
 class OptionType(Enum):
@@ -11,7 +12,38 @@ class OptionState(Enum):
     ITM = "ITM"
     OTM = "OTM"
 
-class Option:
+class Asset(ABC):
+    
+    @abstractmethod
+    def get_payoff(self):
+        pass
+
+class Spot(Asset):
+    
+    def __init__(self, ticker, spot_price):
+        self._ticker = ticker
+        self._spot_price = spot_price
+        
+    def get_ticker(self):
+        return self.__ticker
+    
+    def get_payoff(self, St):
+        return St - self.__spot_price
+    
+    def delta(self):
+        return 1
+    
+class Currency(Spot):
+    
+    def __init__(self, ticker, spot_price):
+        super().__init__(ticker, spot_price)
+        
+class Equity(Spot):
+    
+    def __init__(self, ticker, spot_price):
+        super().__init__(ticker, spot_price)
+        
+class Option(Asset):
 
     def __init__(self, 
                  S: float,
@@ -19,7 +51,8 @@ class Option:
                  T: float,
                  r: float,
                  sigma: float,
-                 option_type: OptionType):
+                 option_type: OptionType,
+                 underlying_ticker: str):
         
         self._S = S # spot
         self._K = K # strike
@@ -27,6 +60,7 @@ class Option:
         self._r = r # free risk rate
         self._sigma = sigma # volatility
         self._option_type = option_type # CALL or PUT
+        self._underlying_ticker = underlying_ticker # ticker of the underlying
 
     def ATM_ITM_OTM(self, spot):
         if spot == self._K:
@@ -42,6 +76,9 @@ class Option:
         else:
             raise ValueError("Spot error ...")
 
+    def get_spot(self):
+        return self._S
+    
     def get_maturity(self):
         return self._T
 
@@ -50,10 +87,12 @@ class Option:
 
     def get_option_type(self):
         return self._option_type
+    
+    def get_underlying_ticker(self):
+        return self._underlying_ticker
 
-    def update_spot(self, S):
+    def update_spot(self, S) -> None:
         self._S = S
-        return
 
     def _d1(self):
         return (1/self._sigma*np.sqrt(self._T))*(np.log(self._S/self._K) + (self._r + self._sigma**2/2)*self._T)
@@ -112,9 +151,10 @@ class Option_FX(Option):
                  rd: float,          # domestic interest rate
                  rf: float,          # foreign interest rate
                  sigma: float,       # exchange rate volatility
-                 option_type: str    # 'call' or 'put'
+                 option_type: str,    # 'call' or 'put'
+                 underlying_ticker: str
                  ):
-        super().__init__(S, K, T, rd, sigma, option_type)
+        super().__init__(S, K, T, rd, sigma, option_type, underlying_ticker)
         self._rd = rd
         self._rf = rf
     
