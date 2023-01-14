@@ -127,3 +127,17 @@ class Strangle:
         plt.title(self.__get_plot_title())
         plt.grid()
         plt.show()
+        
+    def info(self) -> str:
+        if self.__leg1.get_position_type() == PositionType.LONG:
+            pos_type = "LONG"
+        else:
+            pos_type = "SHORT"
+        size = int(self.get_leg1().get_position_size())
+        headline = f"\n ======================= {pos_type} STRANGLE OF {size} OPTIONS PER LEG ======================= \n|\n"
+        first_leg = f"| First leg :  {pos_type} on {size} {self.__leg1.get_asset().info()}\n"
+        second_leg = f"| Second leg : {pos_type} on {size} {self.__leg2.get_asset().info()}\n|\n"
+        bottom = " ========================================================================================="
+        return headline + first_leg + second_leg + bottom
+        
+        

@@ -86,6 +86,9 @@ class Option:
                 return 0
             else:
                 return self._K - St
+            
+    def info(self) -> str:
+        return f"{self._option_type.name} maturity {int(self._T*12)} months, strike {round(self._K, 4)}"
 
     # greeks return functions
     def delta(self) -> float:
