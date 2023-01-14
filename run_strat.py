@@ -1,4 +1,4 @@
-from utils import forward_price
+from utils import forward_price, load_hedging_data, export_hedging_data
 from asset_classes import Option_FX, OptionType
 from strategy import Strangle, PositionType, Position
 
@@ -13,10 +13,14 @@ call = Option_FX(S, K, T, rd, rf, sigma, OptionType.CALL, "EURUSD")
 put = Option_FX(S, K, T, rd, rf, sigma, OptionType.PUT, "EURUSD")
 
 pos = Strangle(call, put, 10e5, PositionType.SHORT)
-
+hedging_historical_data = load_hedging_data()
+pos.set_hedging_data(hedging_historical_data)
 
 # pos.plot_profit()
 print(pos.info())
 pos.delta_hedging()
-pos.print_recap()
+recap = pos.get_recap()
+print(recap)
+export_hedging_data(recap)
+
 

@@ -116,14 +116,17 @@ class Strangle:
             delta += positions.get_position_size()
         return delta
         
-    def delta(self):
+    def delta(self) -> float:
         if abs(self.__leg1.delta() + self.__leg2.delta() + self.get_delta_hedge()) < 0.01:
             return 0
         else:
             return round(self.__leg1.delta() + self.__leg2.delta() + self.get_delta_hedge(), 2)
         
-    def gamma(self):
+    def gamma(self) -> float:
         return round(self.__leg1.gamma() + self.__leg2.gamma(),2)
+    
+    def set_hedging_data(self, hedging) -> None:
+        self.__hedging = hedging
         
     def __get_plot_title(self):
         if self.__leg1.get_position_type() == PositionType.LONG:
@@ -171,12 +174,12 @@ class Strangle:
         recap = [now, round(spot_price, 4), delta_leg1, delta_leg2, delta_strangle, delta_hedge, delta_global]
         self.__hedging_recap.append(recap)
         
-    def print_recap(self) -> None:
+    def get_recap(self) -> pd.DataFrame:
         recap_data = self.__hedging_recap
         col = ["Time", "Spot price", "DELTA leg1", "DELTA leg2", "DELTA strangle", "DELTA hedge", "DELTA global"]
         df = pd.DataFrame(recap_data, columns=col)
         print("\n =========================== RECAP OF THE DELTA HEDGING STRATEGY ===========================")
-        print(df)
+        return df
         
     def delta_hedging(self):
         self.update_recap()
