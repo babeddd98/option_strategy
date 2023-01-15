@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import yfinance as yf
 import pandas as pd
+from utils import get_last_stock_price, load_hedging_data, export_hedging_data
 from asset_classes import (
     Asset, 
     Currency,
@@ -106,15 +107,24 @@ class Strangle:
     def get_leg2(self):
         return self.__leg2
     
+    def get_hedging(self):
+        return self.__hedging
+    
     def update_spot(self, S) -> None:
         self.__leg1.get_asset().update_spot(S)
         self.__leg2.get_asset().update_spot(S)
         
     def get_delta_hedge(self):
+        # return the global delta of the hedging positions
         delta = 0
         for positions in self.__hedging:
             delta += positions.get_position_size()
         return delta
+    
+    def get_hedging_as_df(self):
+        col = ["Time", "Spot price", "DELTA leg1", "DELTA leg2", "DELTA strangle", "DELTA hedge", "DELTA global"]
+        data = pd.DataFrame(self.__hedging_recap, columns=col)
+        return data
         
     def delta(self) -> float:
         if abs(self.__leg1.delta() + self.__leg2.delta() + self.get_delta_hedge()) < 0.01:
@@ -163,43 +173,31 @@ class Strangle:
         bottom = " ========================================================================================="
         return headline + first_leg + second_leg + greeks + bottom
 
-    def update_recap(self) -> None:
-        now = datetime.now()
+    def update_recap(self, time=datetime.now()) -> None:
         spot_price = self.__leg1.get_asset().get_spot()
         delta_leg1 = self.__leg1.delta()
         delta_leg2 = self.__leg2.delta()
         delta_strangle = self.delta()
         delta_hedge = self.get_delta_hedge()
         delta_global = delta_strangle + delta_hedge
-        recap = [now, round(spot_price, 4), delta_leg1, delta_leg2, delta_strangle, delta_hedge, delta_global]
+        recap = [time, round(spot_price, 4), delta_leg1, delta_leg2, delta_strangle, delta_hedge, delta_global]
         self.__hedging_recap.append(recap)
         
     def get_recap(self) -> pd.DataFrame:
-        recap_data = self.__hedging_recap
-        col = ["Time", "Spot price", "DELTA leg1", "DELTA leg2", "DELTA strangle", "DELTA hedge", "DELTA global"]
-        df = pd.DataFrame(recap_data, columns=col)
-        print("\n =========================== RECAP OF THE DELTA HEDGING STRATEGY ===========================")
-        return df
+        return load_hedging_data()
         
     def delta_hedging(self):
-        self.update_recap()
+        # self.update_recap()
         fx = isinstance(self.get_leg1().get_asset(), Option_FX)
-        if fx:
-            ticker = f"{self.get_leg1().get_asset().get_underlying_ticker()}=X"
-        else:
-            ticker = f"{self.get_leg1().get_asset().get_underlying_ticker()}"
-       
-        today = date.today()
-        forex_data = yf.download(ticker, start=today, end=today)
-        spot_price = float(forex_data["Close"])
-        self.update_spot(spot_price)
-        
+        ticker = self.__leg1.get_asset().get_underlying_ticker()
+        time, price = get_last_stock_price(ticker, fx)
+        self.update_spot(price)
         # update greeks to keep neutral delta and positive gamma
         delta_strangle = self.delta()
         if fx:
-            asset = Currency(ticker, spot_price)
+            asset = Currency(ticker, price)
         else:
-            asset = Equity(ticker, spot_price)
+            asset = Equity(ticker, price)
             
         if delta_strangle > 0:
             hedging_position = Position(PositionType.SHORT, asset, abs(delta_strangle))
@@ -207,9 +205,12 @@ class Strangle:
             hedging_position = Position(PositionType.LONG, asset, abs(delta_strangle))
         else:
             return
-    
+
         self.__hedging.append(hedging_position)
-        self.update_recap()
+        self.update_recap(time)
+        to_export = self.get_recap()
+        export_hedging_data(to_export)
+        
         
         
             
